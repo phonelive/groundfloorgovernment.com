@@ -72,7 +72,7 @@
       <section class="py-16 bg-gray-50">
         <div class="max-w-3xl mx-auto px-6 text-center">
           <p class="text-gray-600">
-            Hosted by <span class="font-medium text-gray-900">Hugh Plappert</span>
+            Hosted by <a href="https://www.linkedin.com/in/plappert" target="_blank" class="font-medium text-gray-900 hover:text-gray-700 underline underline-offset-2">Hugh Plappert</a>
           </p>
           <p class="text-gray-500 mt-2">
             CRO of <a href="https://phonelive.io" target="_blank" class="text-gray-700 hover:text-gray-900 underline underline-offset-2">PhoneLive.io</a>
