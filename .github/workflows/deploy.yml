@@ -1,0 +1,60 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate static site
+        run: npm run generate
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-west-2
+
+      - name: Determine deployment target
+        id: target
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "bucket=groundfloorgovernment.com" >> $GITHUB_OUTPUT
+            echo "distribution=${{ secrets.CLOUDFRONT_PROD_ID }}" >> $GITHUB_OUTPUT
+            echo "environment=production" >> $GITHUB_OUTPUT
+          else
+            echo "bucket=dev.groundfloorgovernment.com" >> $GITHUB_OUTPUT
+            echo "distribution=${{ secrets.CLOUDFRONT_DEV_ID }}" >> $GITHUB_OUTPUT
+            echo "environment=development" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync .output/public s3://${{ steps.target.outputs.bucket }} --delete
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.target.outputs.distribution }} \
+            --paths "/*"
