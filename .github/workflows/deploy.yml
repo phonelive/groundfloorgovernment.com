@@ -7,16 +7,29 @@ on:
     tags:
       - 'v*'
 
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set Environment
+        id: setvars
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            echo "ENV=prod" >> $GITHUB_ENV
+            echo "S3_BUCKET=groundfloorgovernment.com" >> $GITHUB_ENV
+            echo "CLOUDFRONT_DIST_ID=E2CLUEIXGIMCK0" >> $GITHUB_ENV
+          else
+            echo "ENV=dev" >> $GITHUB_ENV
+            echo "S3_BUCKET=dev.groundfloorgovernment.com" >> $GITHUB_ENV
+            echo "CLOUDFRONT_DIST_ID=E20DCQ632O4RRL" >> $GITHUB_ENV
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -33,28 +46,16 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-west-2
-
-      - name: Determine deployment target
-        id: target
-        run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            echo "bucket=groundfloorgovernment.com" >> $GITHUB_OUTPUT
-            echo "distribution=${{ secrets.CLOUDFRONT_PROD_ID }}" >> $GITHUB_OUTPUT
-            echo "environment=production" >> $GITHUB_OUTPUT
-          else
-            echo "bucket=dev.groundfloorgovernment.com" >> $GITHUB_OUTPUT
-            echo "distribution=${{ secrets.CLOUDFRONT_DEV_ID }}" >> $GITHUB_OUTPUT
-            echo "environment=development" >> $GITHUB_OUTPUT
-          fi
 
       - name: Deploy to S3
         run: |
-          aws s3 sync .output/public s3://${{ steps.target.outputs.bucket }} --delete
+          aws s3 sync .output/public s3://${{ env.S3_BUCKET }} --delete
 
       - name: Invalidate CloudFront cache
         run: |
           aws cloudfront create-invalidation \
-            --distribution-id ${{ steps.target.outputs.distribution }} \
+            --distribution-id ${{ env.CLOUDFRONT_DIST_ID }} \
             --paths "/*"
